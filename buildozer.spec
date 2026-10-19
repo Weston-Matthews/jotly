@@ -20,7 +20,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.3.0
+requirements = python3,kivy==2.3.0,sqlite3
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -39,6 +39,8 @@ orientation = portrait
 fullscreen = 0
 
 # (list) Permissions
+# Note: WRITE/READ_EXTERNAL_STORAGE are ignored on Android 13+ (API 33).
+# Scoped storage / media permissions will be needed for broader file access later.
 android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
 # (int) Target Android API, should be as high as possible.
