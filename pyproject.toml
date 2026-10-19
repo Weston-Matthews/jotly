@@ -1,17 +1,19 @@
 [project]
 name = "jotly"
 version = "0.1.0"
-description = ""
+description = "Personal note-taking and task app (Kivy)"
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Weston Matthews"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "kivy==2.3.0",
 ]
 
 [tool.poetry]
-packages = [{include = "jotly", from = "src"}]
+# Primary entry is main.py; this file is mainly for dependency metadata.
+# packages = [{include = "jotly", from = "src"}]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
