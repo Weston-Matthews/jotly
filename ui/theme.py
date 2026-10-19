@@ -8,14 +8,15 @@ from kivy.uix.textinput import TextInput
 from kivy.core.text import LabelBase
 import os
 
-# Register a font that includes arrows and basic emoji so glyphs don't render as boxes.
-# DejaVu Sans is widely available on Linux; fall back silently if missing.
-_DEJAVU = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-if os.path.exists(_DEJAVU):
-    LabelBase.register(name='DejaVu', fn_regular=_DEJAVU)
+# Bundle a font that includes arrows and basic symbols so glyphs render on every platform.
+# Path is relative to the project root (works for desktop and when packaged).
+_FONT_PATH = os.path.join(os.path.dirname(__file__), '..', 'assets', 'fonts', 'DejaVuSans.ttf')
+_FONT_PATH = os.path.normpath(_FONT_PATH)
+if os.path.exists(_FONT_PATH):
+    LabelBase.register(name='DejaVu', fn_regular=_FONT_PATH)
     DEFAULT_FONT = 'DejaVu'
 else:
-    DEFAULT_FONT = 'Roboto'  # Kivy default
+    DEFAULT_FONT = 'Roboto'  # Kivy default fallback
 
 # Warm dark slate — reads as a notes app, not stock Kivy grey.
 BG = (0.09, 0.10, 0.12, 1)
