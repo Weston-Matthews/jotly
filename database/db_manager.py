@@ -257,14 +257,19 @@ class DatabaseManager:
             # Typical on Android when the sqlite3 recipe was built without FTS5.
             if 'fts5' in str(exc).lower() or 'no such module' in str(exc).lower():
                 self.fts_available = False
-                # Clean up any partial objects if they exist
-                try:
-                    self.cursor.execute('DROP TABLE IF EXISTS notes_fts')
-                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_ai')
-                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_ad')
-                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_au')
-                except sqlite3.Error:
-                    pass
+                # Drop triggers first (they may reference the missing module),
+                # then the table. Each statement is independent so one failure
+                # does not prevent the others.
+                for stmt in (
+                    'DROP TRIGGER IF EXISTS notes_ai',
+                    'DROP TRIGGER IF EXISTS notes_ad',
+                    'DROP TRIGGER IF EXISTS notes_au',
+                    'DROP TABLE IF EXISTS notes_fts',
+                ):
+                    try:
+                        self.cursor.execute(stmt)
+                    except sqlite3.Error:
+                        pass
             else:
                 raise
 

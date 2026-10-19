@@ -204,10 +204,17 @@ class NoteManager:
                 self.db.execute(sql, params)
             else:
                 # Fallback when FTS5 is unavailable (e.g. some Android builds)
-                like = f'%{(phrase or raw).replace("%", "").replace("_", "")}%'
+                # Escape LIKE special characters so % and _ are treated literally.
+                raw_phrase = (phrase or raw)
+                escaped = (
+                    raw_phrase.replace('\\', '\\\\')
+                    .replace('%', '\\%')
+                    .replace('_', '\\_')
+                )
+                like = f'%{escaped}%'
                 sql = '''
                     SELECT DISTINCT notes.* FROM notes
-                    WHERE (title LIKE ? OR content LIKE ?)
+                    WHERE (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')
                 '''
                 params = [like, like]
                 if tag_id is not None:
@@ -227,7 +234,10 @@ class NoteManager:
                     params.extend(name.lower() for name in tag_names)
                 sql += ' ORDER BY updated_at DESC'
                 self.db.execute(sql, params)
-        except Exception:
+        except Exception as exc:
+            # Log so failures (e.g. leftover triggers) are visible during debugging.
+            import logging
+            logging.getLogger(__name__).debug('note search failed: %s', exc)
             return []
         rows = self.db.fetchall()
         return [Note.from_db_row(row) for row in rows]
