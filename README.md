@@ -76,7 +76,7 @@ tests/                   manager and smoke tests
 
 ### Run on desktop (the usual way)
 
-You need Python 3.12+ and a working display (Linux, macOS, or Windows).
+You need Python 3.12+ (Kivy 2.3.0 lacks prebuilt wheels for 3.13) and a working display (Linux, macOS, or Windows).
 
 ```bash
 git clone https://github.com/Weston-Matthews/jotly.git
