@@ -79,7 +79,7 @@ tests/                   manager and smoke tests
 You need Python 3.12+ and a working display (Linux, macOS, or Windows).
 
 ```bash
-git clone https://github.com/sunflower-sensei-projects/jotly.git
+git clone https://github.com/Weston-Matthews/jotly.git
 cd jotly
 
 python3 -m venv .venv
