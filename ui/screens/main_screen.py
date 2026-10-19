@@ -1,5 +1,8 @@
 """
 Main Screen - folders, notes, and a preview of open tasks
+
+Coordinator only. Row widgets, drag handling, and capture/backup dialogs
+live in ui/widgets/.
 """
 
 from datetime import date
@@ -13,80 +16,25 @@ from kivy.uix.label import Label
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
-from models.note import NoteManager
 from ui.theme import (
     ACCENT,
-    DROP,
-    HOLD,
     HINT,
     MUTED,
-    SURFACE,
     TEXT,
     FlatButton,
     FlatInput,
     switch_screen,
 )
+from ui.widgets.capture_dialogs import (
+    clip_file as open_clip_file,
+    clip_inbox as open_clip_inbox,
+    export_archive as open_export_archive,
+    import_archive as open_import_archive,
+)
 from ui.widgets.dialogs import prompt_text
-from ui.widgets.drag_ghost import DragGhost
 from ui.widgets.folder_tray import FolderBrowseTray
-
-HOLD_SECONDS = 0.7
-
-
-class DropFolderButton(FlatButton):
-    """Folder row that can receive a dragged note."""
-
-    def __init__(self, folder, **kwargs):
-        kwargs.setdefault('kind', 'folder')
-        super().__init__(**kwargs)
-        self.folder = folder
-        self.is_drop_target = True
-
-
-class DraggableNoteButton(FlatButton):
-    """Tap to open, drag onto a folder (or Home) to move."""
-
-    def __init__(self, note, host, **kwargs):
-        kwargs.setdefault('kind', 'note')
-        super().__init__(**kwargs)
-        self.note = note
-        self.host = host
-        self._dragging = False
-        self._origin = None
-
-    def on_touch_down(self, touch):
-        if not self.collide_point(*touch.pos):
-            return super().on_touch_down(touch)
-        touch.grab(self)
-        self._dragging = False
-        self._origin = (self.x, self.y)
-        return True
-
-    def on_touch_move(self, touch):
-        if touch.grab_current is not self:
-            return super().on_touch_move(touch)
-        if abs(touch.dx) + abs(touch.dy) > dp(12):
-            if not self._dragging:
-                self._dragging = True
-                self.opacity = 0.28
-                self.host.begin_note_drag(self)
-        if self._dragging:
-            self.host.move_note_ghost(touch.pos)
-            self.host.on_note_drag(touch)
-        return True
-
-    def on_touch_up(self, touch):
-        if touch.grab_current is not self:
-            return super().on_touch_up(touch)
-        touch.ungrab(self)
-        if self._dragging:
-            self.host.end_note_ghost()
-            self.host.drop_note(self.note, touch)
-            self.opacity = 1
-            self.host.refresh_content()
-        else:
-            self.host.open_note(self.note)
-        return True
+from ui.widgets.note_drag_controller import NoteDragController
+from ui.widgets.note_row import DropFolderButton, note_row
 
 
 class MainScreen(Screen):
@@ -95,12 +43,8 @@ class MainScreen(Screen):
         self.current_folder = None
         self.folder_drop_targets = []
         self.home_drop_target = None
-        self._hold_event = None
-        self._hold_target = None
-        self._highlighted = []
-        self._hover_widget = None
-        self._ghost = None
         self._search_ev = None
+        self.drag = NoteDragController(self)
         self.build_ui()
 
     def build_ui(self):
@@ -146,7 +90,6 @@ class MainScreen(Screen):
             text='Home',
             size_hint_y=None,
             height=dp(26),
-            halign='left',
             color=MUTED,
             font_size='13sp',
         )
@@ -233,7 +176,7 @@ class MainScreen(Screen):
 
         notes = app.note_manager.get_all_notes(self.current_folder)
         for note in notes:
-            self.content_grid.add_widget(self._note_row(note, draggable=True))
+            self.content_grid.add_widget(note_row(note, self, draggable=True))
 
         tasks = app.task_manager.get_all_tasks(
             folder_id=self.current_folder,
@@ -275,149 +218,21 @@ class MainScreen(Screen):
             path_text = ' › '.join(f.name for f in path)
             self.breadcrumb.text = path_text + '  ·  hold ← Up to browse parent folders'
 
-    def _touch_hits(self, widget, touch):
-        return widget.collide_point(*widget.to_widget(*touch.pos))
-
+    # Drag delegation — DraggableNoteButton still talks to the screen.
     def begin_note_drag(self, note_btn):
-        self.drag_hint.text = 'Drop on a folder  ·  hold ← Up to browse  ·  release elsewhere to cancel'
-        self._paint_targets(idle=False)
-        self.end_note_ghost()
-        self._ghost = DragGhost(note_btn.text, note_btn.size)
-        self._ghost.attach(note_btn.center)
+        self.drag.begin_note_drag(note_btn)
 
     def move_note_ghost(self, pos):
-        if self._ghost is not None:
-            self._ghost.follow(pos)
+        self.drag.move_note_ghost(pos)
 
     def end_note_ghost(self):
-        if self._ghost is not None:
-            self._ghost.detach()
-            self._ghost = None
-
-    def _paint_targets(self, idle=True):
-        for btn in self.folder_drop_targets:
-            if idle:
-                btn.set_kind('folder')
-            else:
-                btn.background_color = (0.28, 0.36, 0.48, 1)
-        if self.home_drop_target:
-            if idle:
-                self.home_drop_target.set_kind('neutral')
-            else:
-                self.home_drop_target.background_color = (0.28, 0.36, 0.48, 1)
-
-    def _clear_highlights(self):
-        self._hover_widget = None
-        for widget in self._highlighted:
-            if hasattr(widget, 'set_kind'):
-                widget.set_kind(getattr(widget, 'kind', 'neutral'))
-            else:
-                widget.background_color = (1, 1, 1, 1)
-        self._highlighted = []
-        self._paint_targets(idle=True)
-        for chip in getattr(self.folder_tray, 'chips', []):
-            if hasattr(chip, 'set_kind'):
-                chip.set_kind('folder')
-
-    def _highlight(self, widget, color):
-        if widget is None:
-            return
-        widget.background_color = color
-        self._hover_widget = widget
-        if widget not in self._highlighted:
-            self._highlighted.append(widget)
-
-    def _cancel_hold(self):
-        if self._hold_event is not None:
-            self._hold_event.cancel()
-            self._hold_event = None
-        self._hold_target = None
+        self.drag.end_note_ghost()
 
     def on_note_drag(self, touch):
-        target_key = None
-        open_parent = None
-
-        chip = self.folder_tray.chip_under(touch) if self.folder_tray.is_open() else None
-        hover = None
-        hover_color = DROP
-        hint = 'Release to cancel'
-
-        if chip is not None:
-            target_key = ('chip', chip.folder_id)
-            open_parent = chip.folder_id
-            hover = chip
-            hint = f'Drop to move into {chip.text.replace("📁", "").replace("⌂", "").strip()}'
-        elif self.home_drop_target and self._touch_hits(self.home_drop_target, touch):
-            target_key = ('up', None)
-            hover = self.home_drop_target
-            hover_color = HOLD
-            hint = 'Hold to browse folders  ·  drop now to move to parent / Home'
-            if self.current_folder is None:
-                open_parent = None
-            else:
-                folder = App.get_running_app().folder_manager.get_folder(self.current_folder)
-                open_parent = folder.parent_id if folder else None
-        else:
-            for folder_btn in self.folder_drop_targets:
-                if self._touch_hits(folder_btn, touch):
-                    hover = folder_btn
-                    hint = f'Drop to move into {folder_btn.folder.name}'
-                    break
-
-        if hover is not self._hover_widget:
-            self._clear_highlights()
-            self._paint_targets(idle=False)
-            if hover is not None:
-                self._highlight(hover, hover_color)
-        self.drag_hint.text = hint
-
-        if target_key != self._hold_target:
-            self._cancel_hold()
-            if target_key is not None:
-                self._hold_target = target_key
-                self._hold_event = Clock.schedule_once(
-                    lambda _dt, parent=open_parent, key=target_key: self._open_hold_target(key, parent),
-                    HOLD_SECONDS,
-                )
-
-    def _open_hold_target(self, key, parent_id):
-        self._hold_event = None
-        kind, folder_id = key
-        if kind == 'up':
-            self.folder_tray.show(parent_id)
-        elif kind == 'chip':
-            children = App.get_running_app().folder_manager.get_all_folders(folder_id)
-            if folder_id is None:
-                self.folder_tray.show(None)
-            elif children:
-                self.folder_tray.show(folder_id)
+        self.drag.on_note_drag(touch)
 
     def drop_note(self, note, touch):
-        app = App.get_running_app()
-        self._cancel_hold()
-        self._clear_highlights()
-        self.drag_hint.text = ''
-
-        chip = self.folder_tray.chip_under(touch) if self.folder_tray.is_open() else None
-        if chip is not None:
-            app.note_manager.move_note(note.id, chip.folder_id)
-            self.folder_tray.hide()
-            return
-
-        for folder_btn in self.folder_drop_targets:
-            if self._touch_hits(folder_btn, touch):
-                app.note_manager.move_note(note.id, folder_btn.folder.id)
-                self.folder_tray.hide()
-                return
-
-        if self.home_drop_target and self._touch_hits(self.home_drop_target, touch):
-            target = None
-            if self.current_folder is not None:
-                folder = app.folder_manager.get_folder(self.current_folder)
-                target = folder.parent_id if folder else None
-            app.note_manager.move_note(note.id, target)
-
-        self.folder_tray.hide()
+        self.drag.drop_note(note, touch)
 
     def rename_folder(self, folder):
         def _save(name):
@@ -479,149 +294,17 @@ class MainScreen(Screen):
 
         prompt_text('New folder', 'New Folder', _save, hint='Folder name')
 
-    def _note_label(self, note):
-        app = App.get_running_app()
-        tags = app.tag_manager.get_note_tags(note.id)
-        tag_bit = '  '.join(f'#{t.name}' for t in tags[:4])
-        preview = NoteManager.preview_text(note.content)
-        bits = [f'📝  {note.title}']
-        if tag_bit:
-            bits.append(tag_bit)
-        if preview:
-            bits.append(preview)
-        return '\n'.join(bits)
-
-    def _note_row(self, note, draggable=True):
-        row = BoxLayout(size_hint_y=None, height=dp(72), spacing=dp(6))
-        if draggable:
-            note_btn = DraggableNoteButton(
-                note,
-                self,
-                text=self._note_label(note),
-                halign='left',
-                valign='middle',
-            )
-        else:
-            note_btn = FlatButton(
-                text=self._note_label(note),
-                kind='note',
-                halign='left',
-                valign='middle',
-            )
-            note_btn.bind(on_press=lambda _x, n=note: self.open_note(n))
-        rename_btn = FlatButton(text='Rename', kind='ghost', size_hint_x=None, width=dp(88))
-        rename_btn.bind(on_press=lambda _x, n=note: self.rename_note(n))
-        row.add_widget(note_btn)
-        row.add_widget(rename_btn)
-        return row
-
     def clip_inbox(self, _instance=None):
-        def _save(text):
-            if not text:
-                return
-            app = App.get_running_app()
-            note_id = app.capture.capture_text(text, folder_id=self.current_folder)
-            if note_id:
-                self.refresh_content()
-                self.open_note(app.note_manager.get_note(note_id))
-
-        prompt_text('Clip text or a URL', '', _save, hint='Paste a link or a thought')
+        open_clip_inbox(self)
 
     def clip_file(self, _instance=None):
-        from kivy.uix.boxlayout import BoxLayout as _Box
-        from kivy.uix.filechooser import FileChooserListView
-        from kivy.uix.popup import Popup
-
-        layout = _Box(orientation='vertical', padding=dp(8), spacing=dp(8))
-        chooser = FileChooserListView(path='.')
-        layout.add_widget(chooser)
-        buttons = _Box(size_hint_y=None, height=dp(44), spacing=dp(8))
-        cancel = FlatButton(text='Cancel', kind='ghost')
-        attach = FlatButton(text='Create note', kind='primary')
-        buttons.add_widget(cancel)
-        buttons.add_widget(attach)
-        layout.add_widget(buttons)
-        popup = Popup(
-            title='Attach a file into a new note',
-            content=layout,
-            size_hint=(0.92, 0.8),
-            title_color=TEXT,
-            background='',
-            background_color=SURFACE,
-        )
-
-        def _close(_x=None):
-            popup.dismiss()
-
-        def _go(_x=None):
-            if chooser.selection:
-                app = App.get_running_app()
-                note_id = app.capture.capture_file(
-                    chooser.selection[0], folder_id=self.current_folder
-                )
-                popup.dismiss()
-                if note_id:
-                    self.refresh_content()
-                    self.open_note(app.note_manager.get_note(note_id))
-                return
-            popup.dismiss()
-
-        cancel.bind(on_press=_close)
-        attach.bind(on_press=_go)
-        popup.open()
+        open_clip_file(self)
 
     def export_archive(self, _instance=None):
-        app = App.get_running_app()
-        dest = app.user_data_dir
-
-        def _save(name):
-            filename = name or 'jotly-backup.zip'
-            if not filename.endswith('.zip'):
-                filename += '.zip'
-            path = filename if filename.startswith('/') else f'{dest}/{filename}'
-            app.backup.export_archive(path)
-            self.drag_hint.text = f'Exported to {path}'
-
-        prompt_text('Export archive', 'jotly-backup.zip', _save, hint='Filename in app storage')
+        open_export_archive(self)
 
     def import_archive(self, _instance=None):
-        from kivy.uix.boxlayout import BoxLayout as _Box
-        from kivy.uix.filechooser import FileChooserListView
-        from kivy.uix.popup import Popup
-
-        layout = _Box(orientation='vertical', padding=dp(8), spacing=dp(8))
-        chooser = FileChooserListView(path=App.get_running_app().user_data_dir, filters=['*.zip'])
-        layout.add_widget(chooser)
-        buttons = _Box(size_hint_y=None, height=dp(44), spacing=dp(8))
-        cancel = FlatButton(text='Cancel', kind='ghost')
-        load = FlatButton(text='Import', kind='primary')
-        buttons.add_widget(cancel)
-        buttons.add_widget(load)
-        layout.add_widget(buttons)
-        popup = Popup(
-            title='Import Jotly archive',
-            content=layout,
-            size_hint=(0.92, 0.8),
-            title_color=TEXT,
-            background='',
-            background_color=SURFACE,
-        )
-
-        def _close(_x=None):
-            popup.dismiss()
-
-        def _go(_x=None):
-            if chooser.selection:
-                counts = App.get_running_app().backup.import_archive(chooser.selection[0])
-                self.drag_hint.text = (
-                    f"Imported {counts['notes']} notes, {counts['tasks']} tasks"
-                )
-                self.refresh_content()
-            popup.dismiss()
-
-        cancel.bind(on_press=_close)
-        load.bind(on_press=_go)
-        popup.open()
+        open_import_archive(self)
 
     def search_notes(self, instance):
         query = self.search_input.text.strip()
@@ -633,7 +316,7 @@ class MainScreen(Screen):
         self.content_grid.clear_widgets()
         notes = app.note_manager.search_notes(query)
         for note in notes:
-            self.content_grid.add_widget(self._note_row(note, draggable=False))
+            self.content_grid.add_widget(note_row(note, self, draggable=False))
         if not notes:
             self.content_grid.add_widget(
                 Label(text='No results found', size_hint_y=None, height=dp(48), color=MUTED)
