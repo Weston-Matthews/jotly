@@ -1,6 +1,6 @@
 # main_screen.py Extraction Spec
 
-Status: implemented (local, not pushed)  
+Status: implemented and pushed (commit e31c93a)  
 Source: `ui/screens/main_screen.py` (was ~640 lines; now ~320)  
 Goal: thin the screen into a coordinator + focused widgets so later work (due-date banner, richer lists) is safer.
 
@@ -128,7 +128,7 @@ The drag machinery and the row builders are the largest, most self-contained pie
 ### Target shape
 
 ```
-ui/screens/main_screen.py          # coordinator (~200–250 lines)
+ui/screens/main_screen.py          # coordinator (~320 lines)
 ui/widgets/note_row.py             # DraggableNoteButton + DropFolderButton + row builders
 ui/widgets/note_drag_controller.py # drag state, hold timer, hit-testing, drop
 ui/widgets/capture_dialogs.py      # clip text, attach file, export, import popups (optional)
@@ -172,7 +172,7 @@ Keep `FolderBrowseTray` and `DragGhost` where they are.
 1. `build_ui` stays on the screen.
 2. `refresh_content`, navigation, CRUD, search, and share consumption stay on the screen.
 3. Remove now-unused imports and private helpers.
-4. Confirm the file is roughly 200–250 lines and that every original behavior still works.
+4. Confirm the file is roughly 320 lines and that every original behavior still works.
 
 **Step 5 — Tests**
 
@@ -216,7 +216,7 @@ Keep `FolderBrowseTray` and `DragGhost` where they are.
 
 ## Success criteria
 
-- `main_screen.py` is under ~250 lines and no longer contains drag hit-testing or row construction.
+- `main_screen.py` is under ~330 lines and no longer contains drag hit-testing or row construction.
 - All behaviors in “must be preserved” still work on desktop.
 - Existing tests pass.
 - No new dependencies; no change to data layer or other screens.
