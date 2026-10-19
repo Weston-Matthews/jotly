@@ -70,7 +70,7 @@ def note_label(note):
     tags = app.tag_manager.get_note_tags(note.id)
     tag_bit = '  '.join(f'#{t.name}' for t in tags[:4])
     preview = NoteManager.preview_text(note.content)
-    bits = [f'📝  {note.title}']
+    bits = [f'✎  {note.title}']
     if tag_bit:
         bits.append(tag_bit)
     if preview:

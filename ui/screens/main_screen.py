@@ -165,7 +165,7 @@ class MainScreen(Screen):
             row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
             folder_btn = DropFolderButton(
                 folder,
-                text=f'📁  {folder.name}',
+                text=f'▸  {folder.name}',
                 halign='left',
                 valign='middle',
             )

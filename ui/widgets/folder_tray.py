@@ -104,7 +104,7 @@ class FolderBrowseTray(BoxLayout):
 
         folders = app.folder_manager.get_all_folders(parent_id)
         if not folders and parent_id is not None:
-            here = TrayFolderChip(parent_id, '📁  Drop here (no subfolders)')
+            here = TrayFolderChip(parent_id, '▸  Drop here (no subfolders)')
             self.chip_box.add_widget(here)
             self.chips.append(here)
             return
@@ -112,7 +112,7 @@ class FolderBrowseTray(BoxLayout):
         for folder in folders:
             children = app.folder_manager.get_all_folders(folder.id)
             suffix = '  ›' if children else ''
-            chip = TrayFolderChip(folder.id, f'📁  {folder.name}{suffix}')
+            chip = TrayFolderChip(folder.id, f'▸  {folder.name}{suffix}')
             self.chip_box.add_widget(chip)
             self.chips.append(chip)
 

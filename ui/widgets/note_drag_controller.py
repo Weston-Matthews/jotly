@@ -104,7 +104,7 @@ class NoteDragController:
             target_key = ('chip', chip.folder_id)
             open_parent = chip.folder_id
             hover = chip
-            hint = f'Drop to move into {chip.text.replace("📁", "").replace("⌂", "").strip()}'
+            hint = f'Drop to move into {chip.text.replace("▸", "").replace("⌂", "").strip()}'
         elif self.host.home_drop_target and self._touch_hits(self.host.home_drop_target, touch):
             target_key = ('up', None)
             hover = self.host.home_drop_target
