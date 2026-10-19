@@ -18,6 +18,7 @@ from kivy.uix.scrollview import ScrollView
 
 from ui.theme import (
     ACCENT,
+    DEFAULT_FONT,
     HINT,
     MUTED,
     TEXT,
@@ -92,6 +93,7 @@ class MainScreen(Screen):
             height=dp(26),
             color=MUTED,
             font_size='13sp',
+            font_name=DEFAULT_FONT,
         )
         self.breadcrumb.bind(size=self.breadcrumb.setter('text_size'))
         main_layout.add_widget(self.breadcrumb)
@@ -101,6 +103,7 @@ class MainScreen(Screen):
             height=dp(18),
             color=HINT,
             font_size='12sp',
+            font_name=DEFAULT_FONT,
         )
         main_layout.add_widget(self.drag_hint)
 

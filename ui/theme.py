@@ -5,6 +5,17 @@ from kivy.metrics import dp
 from kivy.uix.button import Button
 from kivy.uix.screenmanager import SlideTransition
 from kivy.uix.textinput import TextInput
+from kivy.core.text import LabelBase
+import os
+
+# Register a font that includes arrows and basic emoji so glyphs don't render as boxes.
+# DejaVu Sans is widely available on Linux; fall back silently if missing.
+_DEJAVU = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+if os.path.exists(_DEJAVU):
+    LabelBase.register(name='DejaVu', fn_regular=_DEJAVU)
+    DEFAULT_FONT = 'DejaVu'
+else:
+    DEFAULT_FONT = 'Roboto'  # Kivy default
 
 # Warm dark slate — reads as a notes app, not stock Kivy grey.
 BG = (0.09, 0.10, 0.12, 1)
@@ -78,6 +89,7 @@ class FlatButton(Button):
         kwargs.setdefault('background_down', '')
         kwargs.setdefault('color', TEXT)
         kwargs.setdefault('font_size', '15sp')
+        kwargs.setdefault('font_name', DEFAULT_FONT)
         kwargs.setdefault('halign', 'center')
         kwargs.setdefault('valign', 'middle')
         super().__init__(**kwargs)
@@ -114,4 +126,5 @@ class FlatInput(TextInput):
         kwargs.setdefault('selection_color', (0.27, 0.55, 0.92, 0.35))
         kwargs.setdefault('padding', [dp(12), dp(12), dp(12), dp(12)])
         kwargs.setdefault('font_size', '16sp')
+        kwargs.setdefault('font_name', DEFAULT_FONT)
         super().__init__(**kwargs)
