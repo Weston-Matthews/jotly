@@ -21,6 +21,7 @@ class DatabaseManager:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute('PRAGMA foreign_keys = ON')
         self.cursor = self.conn.cursor()
+        self.fts_available = False
         self._create_tables()
         self._migrate_schema()
 
@@ -198,54 +199,74 @@ class DatabaseManager:
             )
 
     def _ensure_notes_fts(self):
-        """Use an external-content FTS5 table kept in sync by triggers."""
-        row = self.cursor.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='notes_fts'"
-        ).fetchone()
-        sql = row[0] if row else ''
-        is_external = sql and "content='notes'" in sql.replace('"', "'")
+        """Use an external-content FTS5 table kept in sync by triggers.
 
-        if row and not is_external:
-            self.cursor.execute('DROP TABLE notes_fts')
-            row = None
+        If the SQLite build lacks FTS5 (common on some Android recipes),
+        fall back gracefully so the app can still start. Search will use LIKE.
+        """
+        try:
+            row = self.cursor.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='notes_fts'"
+            ).fetchone()
+            sql = row[0] if row else ''
+            is_external = sql and "content='notes'" in sql.replace('"', "'")
 
-        if not row:
+            if row and not is_external:
+                self.cursor.execute('DROP TABLE notes_fts')
+                row = None
+
+            if not row:
+                self.cursor.execute('''
+                    CREATE VIRTUAL TABLE notes_fts
+                    USING fts5(
+                        title,
+                        content,
+                        content='notes',
+                        content_rowid='id'
+                    )
+                ''')
+
+            self.cursor.execute('DROP TRIGGER IF EXISTS notes_ai')
+            self.cursor.execute('DROP TRIGGER IF EXISTS notes_ad')
+            self.cursor.execute('DROP TRIGGER IF EXISTS notes_au')
+
             self.cursor.execute('''
-                CREATE VIRTUAL TABLE notes_fts
-                USING fts5(
-                    title,
-                    content,
-                    content='notes',
-                    content_rowid='id'
-                )
+                CREATE TRIGGER notes_ai AFTER INSERT ON notes BEGIN
+                    INSERT INTO notes_fts(rowid, title, content)
+                    VALUES (new.id, new.title, new.content);
+                END
+            ''')
+            self.cursor.execute('''
+                CREATE TRIGGER notes_ad AFTER DELETE ON notes BEGIN
+                    INSERT INTO notes_fts(notes_fts, rowid, title, content)
+                    VALUES ('delete', old.id, old.title, old.content);
+                END
+            ''')
+            self.cursor.execute('''
+                CREATE TRIGGER notes_au AFTER UPDATE ON notes BEGIN
+                    INSERT INTO notes_fts(notes_fts, rowid, title, content)
+                    VALUES ('delete', old.id, old.title, old.content);
+                    INSERT INTO notes_fts(rowid, title, content)
+                    VALUES (new.id, new.title, new.content);
+                END
             ''')
 
-        self.cursor.execute('DROP TRIGGER IF EXISTS notes_ai')
-        self.cursor.execute('DROP TRIGGER IF EXISTS notes_ad')
-        self.cursor.execute('DROP TRIGGER IF EXISTS notes_au')
-
-        self.cursor.execute('''
-            CREATE TRIGGER notes_ai AFTER INSERT ON notes BEGIN
-                INSERT INTO notes_fts(rowid, title, content)
-                VALUES (new.id, new.title, new.content);
-            END
-        ''')
-        self.cursor.execute('''
-            CREATE TRIGGER notes_ad AFTER DELETE ON notes BEGIN
-                INSERT INTO notes_fts(notes_fts, rowid, title, content)
-                VALUES ('delete', old.id, old.title, old.content);
-            END
-        ''')
-        self.cursor.execute('''
-            CREATE TRIGGER notes_au AFTER UPDATE ON notes BEGIN
-                INSERT INTO notes_fts(notes_fts, rowid, title, content)
-                VALUES ('delete', old.id, old.title, old.content);
-                INSERT INTO notes_fts(rowid, title, content)
-                VALUES (new.id, new.title, new.content);
-            END
-        ''')
-
-        self.cursor.execute("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
+            self.cursor.execute("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
+            self.fts_available = True
+        except sqlite3.OperationalError as exc:
+            # Typical on Android when the sqlite3 recipe was built without FTS5.
+            if 'fts5' in str(exc).lower() or 'no such module' in str(exc).lower():
+                self.fts_available = False
+                # Clean up any partial objects if they exist
+                try:
+                    self.cursor.execute('DROP TABLE IF EXISTS notes_fts')
+                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_ai')
+                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_ad')
+                    self.cursor.execute('DROP TRIGGER IF EXISTS notes_au')
+                except sqlite3.Error:
+                    pass
+            else:
+                raise
 
     def execute(self, query, params=None):
         if params is not None:

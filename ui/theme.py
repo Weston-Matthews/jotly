@@ -67,7 +67,8 @@ KIND_DOWN = {
 
 
 def apply_window():
-    Window.clearcolor = BG
+    if Window is not None:
+        Window.clearcolor = BG
 
 
 def switch_screen(manager, name, direction='left'):

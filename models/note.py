@@ -178,29 +178,55 @@ class NoteManager:
             return [Note.from_db_row(row) for row in self.db.fetchall()]
 
         try:
-            sql = '''
-                SELECT DISTINCT notes.* FROM notes
-                JOIN notes_fts ON notes.id = notes_fts.rowid
-                WHERE notes_fts MATCH ?
-            '''
-            params = [self._fts_phrase(phrase or raw)]
-            if tag_id is not None:
-                sql += '''
-                    AND notes.id IN (SELECT note_id FROM note_tags WHERE tag_id = ?)
+            if getattr(self.db, 'fts_available', True):
+                sql = '''
+                    SELECT DISTINCT notes.* FROM notes
+                    JOIN notes_fts ON notes.id = notes_fts.rowid
+                    WHERE notes_fts MATCH ?
                 '''
-                params.append(tag_id)
-            if tag_names:
-                placeholders = ','.join('?' * len(tag_names))
-                sql += f'''
-                    AND notes.id IN (
-                        SELECT note_id FROM note_tags
-                        JOIN tags ON tags.id = note_tags.tag_id
-                        WHERE lower(tags.name) IN ({placeholders})
-                    )
+                params = [self._fts_phrase(phrase or raw)]
+                if tag_id is not None:
+                    sql += '''
+                        AND notes.id IN (SELECT note_id FROM note_tags WHERE tag_id = ?)
+                    '''
+                    params.append(tag_id)
+                if tag_names:
+                    placeholders = ','.join('?' * len(tag_names))
+                    sql += f'''
+                        AND notes.id IN (
+                            SELECT note_id FROM note_tags
+                            JOIN tags ON tags.id = note_tags.tag_id
+                            WHERE lower(tags.name) IN ({placeholders})
+                        )
+                    '''
+                    params.extend(name.lower() for name in tag_names)
+                sql += ' ORDER BY rank'
+                self.db.execute(sql, params)
+            else:
+                # Fallback when FTS5 is unavailable (e.g. some Android builds)
+                like = f'%{(phrase or raw).replace("%", "").replace("_", "")}%'
+                sql = '''
+                    SELECT DISTINCT notes.* FROM notes
+                    WHERE (title LIKE ? OR content LIKE ?)
                 '''
-                params.extend(name.lower() for name in tag_names)
-            sql += ' ORDER BY rank'
-            self.db.execute(sql, params)
+                params = [like, like]
+                if tag_id is not None:
+                    sql += '''
+                        AND notes.id IN (SELECT note_id FROM note_tags WHERE tag_id = ?)
+                    '''
+                    params.append(tag_id)
+                if tag_names:
+                    placeholders = ','.join('?' * len(tag_names))
+                    sql += f'''
+                        AND notes.id IN (
+                            SELECT note_id FROM note_tags
+                            JOIN tags ON tags.id = note_tags.tag_id
+                            WHERE lower(tags.name) IN ({placeholders})
+                        )
+                    '''
+                    params.extend(name.lower() for name in tag_names)
+                sql += ' ORDER BY updated_at DESC'
+                self.db.execute(sql, params)
         except Exception:
             return []
         rows = self.db.fetchall()
