@@ -80,6 +80,24 @@ class FolderBrowseTray(BoxLayout):
     def is_open(self):
         return self.opacity > 0.5
 
+    # While collapsed (height 0) the header still lays out on top of the
+    # bottom bar, and disabled widgets swallow touches that collide with
+    # them. Ignore all touches unless the tray is actually open.
+    def on_touch_down(self, touch):
+        if not self.is_open():
+            return False
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if not self.is_open():
+            return False
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if not self.is_open():
+            return False
+        return super().on_touch_up(touch)
+
     def go_back(self):
         if self.current_parent_id is None:
             return
@@ -116,10 +134,11 @@ class FolderBrowseTray(BoxLayout):
             self.chip_box.add_widget(chip)
             self.chips.append(chip)
 
-    def chip_under(self, touch):
+    def chip_under(self, pos):
+        """pos is in window coordinates."""
         if not self.is_open():
             return None
         for chip in self.chips:
-            if chip.collide_point(*chip.to_widget(*touch.pos)):
+            if chip.collide_point(*chip.to_widget(*pos)):
                 return chip
         return None

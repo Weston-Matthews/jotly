@@ -40,15 +40,22 @@ class DraggableNoteButton(FlatButton):
     def on_touch_move(self, touch):
         if touch.grab_current is not self:
             return super().on_touch_move(touch)
-        if abs(touch.dx) + abs(touch.dy) > dp(12):
+        # dx/dy are per-event deltas (1-3 px on a phone); use distance from touch origin.
+        if abs(touch.x - touch.ox) + abs(touch.y - touch.oy) > dp(12):
             if not self._dragging:
                 self._dragging = True
                 self.opacity = 0.28
                 self.host.begin_note_drag(self)
         if self._dragging:
-            self.host.move_note_ghost(touch.pos)
-            self.host.on_note_drag(touch)
+            wpos = self._window_pos(touch)
+            self.host.move_note_ghost(wpos)
+            self.host.on_note_drag(wpos)
         return True
+
+    def _window_pos(self, touch):
+        # During grabbed dispatch touch.pos is in our parent's local space
+        # (ScrollView content coords), not window coords.
+        return self.parent.to_window(*touch.pos) if self.parent else touch.pos
 
     def on_touch_up(self, touch):
         if touch.grab_current is not self:
@@ -56,7 +63,7 @@ class DraggableNoteButton(FlatButton):
         touch.ungrab(self)
         if self._dragging:
             self.host.end_note_ghost()
-            self.host.drop_note(self.note, touch)
+            self.host.drop_note(self.note, self._window_pos(touch))
             self.opacity = 1
             self.host.refresh_content()
         else:

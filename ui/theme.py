@@ -130,3 +130,26 @@ class FlatInput(TextInput):
         kwargs.setdefault('font_size', '16sp')
         kwargs.setdefault('font_name', DEFAULT_FONT)
         super().__init__(**kwargs)
+        if not self.multiline:
+            # A fixed height minus fixed 12dp padding leaves exactly one line of
+            # room at 1.0 font scale; at Android font scale > 1 the line no longer
+            # fits and TextInput toggles scroll_y on every keystroke ("bounce").
+            self._min_height = self.height if self.size_hint_y is None else None
+            self.bind(
+                height=self._fit_single_line,
+                line_height=self._fit_single_line,
+                font_size=self._fit_single_line,
+            )
+            self._fit_single_line()
+
+    def _fit_single_line(self, *_args):
+        line_h = self.line_height
+        if self._min_height is not None:
+            wanted = max(self._min_height, line_h + dp(16))
+            if abs(self.height - wanted) > 0.5:
+                self.height = wanted  # re-enters via the height binding
+                return
+        pad_y = max(dp(2), (self.height - line_h) / 2.0)
+        left, _top, right, _bottom = self.padding
+        self.padding = [left, pad_y, right, pad_y]
+        self.scroll_y = 0

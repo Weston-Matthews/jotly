@@ -18,6 +18,7 @@ from models.tag import TagManager
 from models.task import TaskManager
 from ui.screens.main_screen import MainScreen
 from ui.screens.note_editor import NoteEditorScreen
+from ui.screens.task_editor import TaskEditorScreen
 from ui.screens.task_list import TaskListScreen
 from ui.theme import TRANSITION_DURATION, apply_window
 
@@ -66,6 +67,7 @@ class JotlyApp(App):
         sm.add_widget(MainScreen(name='main'))
         sm.add_widget(NoteEditorScreen(name='note_editor'))
         sm.add_widget(TaskListScreen(name='task_list'))
+        sm.add_widget(TaskEditorScreen(name='task_editor'))
         return sm
 
     def on_stop(self):

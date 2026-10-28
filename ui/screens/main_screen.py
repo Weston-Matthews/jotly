@@ -231,11 +231,11 @@ class MainScreen(Screen):
     def end_note_ghost(self):
         self.drag.end_note_ghost()
 
-    def on_note_drag(self, touch):
-        self.drag.on_note_drag(touch)
+    def on_note_drag(self, pos):
+        self.drag.on_note_drag(pos)
 
-    def drop_note(self, note, touch):
-        self.drag.drop_note(note, touch)
+    def drop_note(self, note, pos):
+        self.drag.drop_note(note, pos)
 
     def rename_folder(self, folder):
         def _save(name):
@@ -263,7 +263,9 @@ class MainScreen(Screen):
         switch_screen(self.manager, 'note_editor', 'left')
 
     def open_task(self, task):
-        self.open_task_list()
+        editor = self.manager.get_screen('task_editor')
+        editor.edit_task(task, return_to='main')
+        switch_screen(self.manager, 'task_editor', 'left')
 
     def open_task_list(self, instance=None):
         task_screen = self.manager.get_screen('task_list')
@@ -284,9 +286,9 @@ class MainScreen(Screen):
         self.open_note(note)
 
     def create_new_task(self, instance):
-        app = App.get_running_app()
-        app.task_manager.create_task('New Task', '', self.current_folder)
-        self.refresh_content()
+        editor = self.manager.get_screen('task_editor')
+        editor.new_task(self.current_folder, return_to='main')
+        switch_screen(self.manager, 'task_editor', 'left')
 
     def create_new_folder(self, instance):
         def _save(name):

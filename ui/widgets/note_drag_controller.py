@@ -84,15 +84,16 @@ class NoteDragController:
         self._hold_target = None
 
     @staticmethod
-    def _touch_hits(widget, touch):
-        return widget.collide_point(*widget.to_widget(*touch.pos))
+    def _touch_hits(widget, pos):
+        """pos is in window coordinates."""
+        return widget.collide_point(*widget.to_widget(*pos))
 
-    def on_note_drag(self, touch):
+    def on_note_drag(self, pos):
         target_key = None
         open_parent = None
 
         chip = (
-            self.host.folder_tray.chip_under(touch)
+            self.host.folder_tray.chip_under(pos)
             if self.host.folder_tray.is_open()
             else None
         )
@@ -105,7 +106,7 @@ class NoteDragController:
             open_parent = chip.folder_id
             hover = chip
             hint = f'Drop to move into {chip.text.replace("▸", "").replace("⌂", "").strip()}'
-        elif self.host.home_drop_target and self._touch_hits(self.host.home_drop_target, touch):
+        elif self.host.home_drop_target and self._touch_hits(self.host.home_drop_target, pos):
             target_key = ('up', None)
             hover = self.host.home_drop_target
             hover_color = HOLD
@@ -117,7 +118,7 @@ class NoteDragController:
                 open_parent = folder.parent_id if folder else None
         else:
             for folder_btn in self.host.folder_drop_targets:
-                if self._touch_hits(folder_btn, touch):
+                if self._touch_hits(folder_btn, pos):
                     hover = folder_btn
                     hint = f'Drop to move into {folder_btn.folder.name}'
                     break
@@ -150,14 +151,14 @@ class NoteDragController:
             elif children:
                 self.host.folder_tray.show(folder_id)
 
-    def drop_note(self, note, touch):
+    def drop_note(self, note, pos):
         app = App.get_running_app()
         self._cancel_hold()
         self._clear_highlights()
         self.host.drag_hint.text = ''
 
         chip = (
-            self.host.folder_tray.chip_under(touch)
+            self.host.folder_tray.chip_under(pos)
             if self.host.folder_tray.is_open()
             else None
         )
@@ -167,12 +168,12 @@ class NoteDragController:
             return
 
         for folder_btn in self.host.folder_drop_targets:
-            if self._touch_hits(folder_btn, touch):
+            if self._touch_hits(folder_btn, pos):
                 app.note_manager.move_note(note.id, folder_btn.folder.id)
                 self.host.folder_tray.hide()
                 return
 
-        if self.host.home_drop_target and self._touch_hits(self.host.home_drop_target, touch):
+        if self.host.home_drop_target and self._touch_hits(self.host.home_drop_target, pos):
             target = None
             if self.host.current_folder is not None:
                 folder = app.folder_manager.get_folder(self.host.current_folder)

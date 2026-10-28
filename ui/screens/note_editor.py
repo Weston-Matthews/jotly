@@ -14,6 +14,7 @@ from kivy.uix.scrollview import ScrollView
 
 from ui.theme import MUTED, SURFACE, TEXT, FlatButton, FlatInput, switch_screen
 from ui.widgets.dialogs import prompt_text
+from ui.widgets.folder_picker import pick_folder
 from ui.widgets.rich_text_editor import RichTextEditor
 
 
@@ -28,11 +29,12 @@ class NoteEditorScreen(Screen):
         main_layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
 
         top_bar = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(8))
-        top_bar.add_widget(FlatButton(text='← Back', kind='neutral', size_hint_x=0.3, on_press=self.go_back))
-        self.save_btn = FlatButton(text='Save', kind='primary', size_hint_x=0.3, on_press=self.save_note)
+        top_bar.add_widget(FlatButton(text='← Back', kind='neutral', size_hint_x=0.25, on_press=self.go_back))
+        self.save_btn = FlatButton(text='Save', kind='primary', size_hint_x=0.25, on_press=self.save_note)
         top_bar.add_widget(self.save_btn)
+        top_bar.add_widget(FlatButton(text='Move…', kind='neutral', size_hint_x=0.25, on_press=self.move_note))
         top_bar.add_widget(
-            FlatButton(text='Delete', kind='danger', size_hint_x=0.4, on_press=self.delete_note)
+            FlatButton(text='Delete', kind='danger', size_hint_x=0.25, on_press=self.delete_note)
         )
         main_layout.add_widget(top_bar)
 
@@ -184,6 +186,17 @@ class NoteEditorScreen(Screen):
             self._save_flash = None
 
         self._save_flash = Clock.schedule_once(_reset, 0.7)
+
+    def move_note(self, _instance=None):
+        if self.current_note is None:
+            return
+
+        def _move(folder_id):
+            app = App.get_running_app()
+            app.note_manager.move_note(self.current_note.id, folder_id)
+            self.current_note.folder_id = folder_id
+
+        pick_folder('Move note to…', self.current_note.folder_id, _move)
 
     def delete_note(self, instance):
         if self.current_note is None:

@@ -145,10 +145,19 @@ def test_three_screens_smoke():
             main.search_input.text = ''
             main.refresh_content()
             main.create_new_task(None)
+            if sm.current != 'task_editor':
+                fail(f'+ Task should open the task editor, got {sm.current}')
+            editor = sm.get_screen('task_editor')
+            editor.title_input.text = 'New Task'
+            editor.save_and_close()
             if not any('New Task' in t for t in _button_texts(main)):
                 fail('creating a task did not show it on main')
 
-            main.open_task(None)
+            main.open_task(app.task_manager.get_all_tasks()[0])
+            if sm.current != 'task_editor':
+                fail(f'tapping a task should open its editor, got {sm.current}')
+            editor.go_back()
+            main.open_task_list()
             if sm.current != 'task_list':
                 fail(f'expected task_list, got {sm.current}')
             tasks.refresh_tasks()
@@ -169,6 +178,13 @@ def test_three_screens_smoke():
                     fail('delete from task list did not persist')
 
             tasks.create_task(None)
+            if sm.current != 'task_editor':
+                fail(f'+ New Task should open the task editor, got {sm.current}')
+            task_editor = sm.get_screen('task_editor')
+            task_editor.title_input.text = 'From list'
+            task_editor.save_and_close()
+            if sm.current != 'task_list':
+                fail(f'saving should return to task_list, got {sm.current}')
             if not app.task_manager.get_all_tasks():
                 fail('+ New Task on task list did not create a row')
 

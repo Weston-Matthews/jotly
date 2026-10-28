@@ -55,6 +55,7 @@ class TaskRow(BoxLayout):
             color=MUTED if task.completed else TEXT,
         )
         self.title_label.bind(size=lambda l, v: setattr(l, 'text_size', (v[0], None)))
+        self.title_label.bind(on_touch_up=self._on_title_tap)
         self.add_widget(self.title_label)
 
         self.due_btn = FlatButton(
@@ -87,6 +88,13 @@ class TaskRow(BoxLayout):
             self.host._syncing = True
             self.checkbox.active = bool(self.task.completed)
             self.host._syncing = False
+
+    def _on_title_tap(self, label, touch):
+        moved = abs(touch.x - touch.ox) + abs(touch.y - touch.oy)
+        if label.collide_point(*touch.pos) and moved < dp(10) and not touch.is_mouse_scrolling:
+            self.host.open_task_editor(self.task)
+            return True
+        return False
 
     def _on_check(self, _cb, value):
         self.host.toggle_task(self, value)
@@ -303,8 +311,14 @@ class TaskListScreen(Screen):
             )
 
     def create_task(self, instance):
-        App.get_running_app().task_manager.create_task('New Task', folder_id=self.folder_id)
-        self.refresh_tasks()
+        editor = self.manager.get_screen('task_editor')
+        editor.new_task(self.folder_id, return_to='task_list')
+        switch_screen(self.manager, 'task_editor', 'left')
+
+    def open_task_editor(self, task):
+        editor = self.manager.get_screen('task_editor')
+        editor.edit_task(task, return_to='task_list')
+        switch_screen(self.manager, 'task_editor', 'left')
 
     def go_back(self, instance):
         switch_screen(self.manager, 'main', 'right')
